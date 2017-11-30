@@ -12,13 +12,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
-import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class AndroidLauncher extends AndroidApplication {
 
@@ -38,12 +35,15 @@ public class AndroidLauncher extends AndroidApplication {
         cfg.depth = 16;
         cfg.stencil = 0;
 
-        View view = initializeForView(new ActorAdapter(), cfg);
+//        initialize(new ParticleAdapter(), cfg);
+
+        View view = initializeForView(new ParticleAdapter(), cfg);
         if (graphics.getView() instanceof GLSurfaceView) {
             // set background translate
             GLSurfaceView view1 = (GLSurfaceView) graphics.getView();
             view1.getHolder().setFormat(PixelFormat.TRANSLUCENT);
             view1.setZOrderOnTop(true);
+            view1.setZOrderMediaOverlay(true);
         }
 
         setContentView(R.layout.main_activity);

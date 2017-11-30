@@ -18,6 +18,7 @@ public class ActorAdapter extends ApplicationAdapter {
     @Override
     public void create () {
         stage = new Stage();
+        // 接受所有的触摸事件 每一帧 执行一次
         Gdx.input.setInputProcessor(stage);
         Mario mario = new Mario(100,190);
 
