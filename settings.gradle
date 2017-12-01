@@ -1,1 +1,2 @@
+include ':dnncore'
 include 'android', 'core'

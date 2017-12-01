@@ -14,13 +14,24 @@ import android.widget.FrameLayout;
 
 import com.badlogic.gdx.backends.android.AndroidApplication;
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration;
+import com.dressplus.dnn.DrawingSurfaceView;
+import com.dressplus.dnn.ObjHunter;
+import com.dressplus.dnn.ObjTracker;
+import com.dressplus.dnn.TrackObject;
+import com.dressplus.dnn.utils.LayoutUtil;
+import com.dressplus.dnn.utils.MySystemParams;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class AndroidLauncher extends AndroidApplication {
 
     private Camera mCamera;
     private SurfaceHolder mHolder;
+    private ParticleAdapter particleAdapter;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -37,7 +48,8 @@ public class AndroidLauncher extends AndroidApplication {
 
 //        initialize(new ParticleAdapter(), cfg);
 
-        View view = initializeForView(new ParticleAdapter(), cfg);
+        particleAdapter = new ParticleAdapter();
+        View view = initializeForView(particleAdapter, cfg);
         if (graphics.getView() instanceof GLSurfaceView) {
             // set background translate
             GLSurfaceView view1 = (GLSurfaceView) graphics.getView();
@@ -56,7 +68,12 @@ public class AndroidLauncher extends AndroidApplication {
         container.addView(surfaceView);
         surfaceView.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         mHolder = surfaceView.getHolder();
-        // 设置 工作模式
+
+        if (mObjTracker == null) {
+            mObjTracker = ObjTracker.getInstance();
+        }
+
+        mObjTracker.InitObjTracker(1, PREVIEW_WIDTH, PREVIEW_HEIGHT);
     }
 
     @Override
@@ -64,6 +81,11 @@ public class AndroidLauncher extends AndroidApplication {
         super.onResume();
         initCamera();
         mHolder.addCallback(holderCallback);
+
+        killed = false;
+        Thread thread = new Thread(tracker_runnable);
+
+        thread.start();
     }
 
     @Override
@@ -78,7 +100,10 @@ public class AndroidLauncher extends AndroidApplication {
         try {
             if (mCamera != null && holder != null) {
                 mCamera.setPreviewDisplay(holder);
-                mCamera.setDisplayOrientation(90);
+                Camera.CameraInfo info = new Camera.CameraInfo();
+                Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, info);
+                mCamera.setDisplayOrientation(info.orientation);
+
                 // setPreviewCallbackWithBuffer 是可控的 需要在开始 之前分配一个 buffer 地址
                 mCamera.setPreviewCallbackWithBuffer(previewCallback);
                 Camera.Parameters parameters = mCamera.getParameters();
@@ -114,6 +139,12 @@ public class AndroidLauncher extends AndroidApplication {
             mCamera = Camera.open();
             // set camera parameters
             Camera.Parameters parameters = mCamera.getParameters();
+            parameters.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            parameters.setPreviewFormat(ImageFormat.NV21);
+            parameters.set("jpeg-quality", 100);
+            // 这句话 得有 ，不然返回的数据不对。
+            parameters.setPreviewSize(320, 240);
+
             if (parameters.getSupportedFocusModes().contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE)) {
                 parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
             } else {
@@ -156,14 +187,140 @@ public class AndroidLauncher extends AndroidApplication {
     private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
         @Override
         public void onPreviewFrame(byte[] data, Camera camera) {
-            Log.e("maxiaoran ", "System time1  " + System.currentTimeMillis());
-            Log.e("maxiaoran  ", "camera data length1  " + data.length);
             // 执行就会 回掉一次， 获得 数据
+            frame_data = data.clone();
+            isNV21ready = true;
             camera.addCallbackBuffer(mBuffer);
-
-            Log.e("maxiaoran  ", "camera data length2  " + mBuffer.length);
-            Log.e("maxiaoran ", "System time2  " + System.currentTimeMillis());
 
         }
     };
+
+    // ansync byte
+    private boolean detected = false;
+    private boolean tracker_init = false;
+    private List<TrackObject> obj_result = null;
+    private List<String> labels = new ArrayList();
+    private static final int PREVIEW_WIDTH = 320, PREVIEW_HEIGHT = 240;
+    private byte[] frame_data = null;
+    private boolean killed = false;
+    private boolean isNV21ready = false;
+
+    private ObjTracker mObjTracker;
+
+    private Runnable tracker_runnable = new Runnable() {
+        byte[] tmp = null;
+
+        @Override
+        public void run() {
+
+            while (!killed) {
+                if (!isNV21ready) {
+                    continue;
+                }
+
+                synchronized (frame_data) {
+                    tmp = frame_data.clone();
+                }
+
+                isNV21ready = false;
+                int width;
+                int height;
+                if (mCamera != null) {
+                    Camera.Size previewSize = mCamera.getParameters().getPreviewSize();
+                    width = previewSize.width;
+                    height = previewSize.height;
+
+                    if (!detected) {
+                        String result = ObjHunter.getInstance().objdetector(tmp, 1, width, height);
+                        Log.e("maxiaoran  ", "ffffffffffff   " + result);
+                        if (result != null && result.length() > 1) {
+                            obj_result = TrackObject.segment(result, "~", 0);
+                            if (obj_result != null && obj_result.size() > 0) {
+                                detected = true;
+                            }
+                        }
+                        //
+                        if (obj_result != null && obj_result.size() > 0 && particleAdapter != null) {
+
+                        } else {
+                            System.out.println("position  false  ");
+                            particleAdapter.setPosition(false, 0.1f, 0.1f);
+                        }
+
+                    }
+
+                    Camera.CameraInfo info = new Camera.CameraInfo();
+                    Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, info);
+                    boolean rotate270 = info.orientation == 270;
+                    boolean frontCamera = false;
+                    if (detected && !tracker_init) {
+                        Log.e("maxiaoran ", "System time5  " + System.currentTimeMillis() + obj_result.get(0).top + "  " + obj_result.get(0).left);
+                        Collections.sort(obj_result, new Comparator<TrackObject>() {
+                            public int compare(TrackObject o1, TrackObject o2) {
+                                return o2.probability < o1.probability ? 1 : -1;
+                            }
+                        });
+
+                        obj_result = obj_result.subList(0, obj_result.size() > 4 ? 4 : obj_result.size());
+
+                        int index = 0;
+                        for (TrackObject obj_item : obj_result) {
+                            Log.e("maxiaoran ", "System time6  " + System.currentTimeMillis() + obj_result.get(0).top + "  " + obj_result.get(0).left);
+                            labels.add(obj_item.getName());
+                            int[] rect = new int[4];
+                            rect[0] = (int) (obj_item.left * PREVIEW_HEIGHT);
+                            rect[1] = (int) (obj_item.top * PREVIEW_WIDTH);
+                            rect[2] = (int) (obj_item.width * PREVIEW_HEIGHT);
+                            rect[3] = (int) (obj_item.height * PREVIEW_WIDTH);
+                            rect = mObjTracker.calibreRectBeforeAdd(rect, rotate270, frontCamera);
+                            int flag = mObjTracker.addObjTracker(tmp, rect, index);
+                            index++;
+                            if (flag == 0) {
+                                detected = false;
+                                break;
+                            } else {
+                                tracker_init = true;
+                            }
+                        }
+                    }
+
+                    if (tracker_init) {
+                        List<int[]> result = mObjTracker.Update(tmp);
+                        int[] _rect;
+                        if (result == null) {
+                            detected = false;
+                            tracker_init = false;
+                            obj_result = null;
+                        } else {
+                            for (int i = 0; i < result.size() && i < obj_result.size(); i++) {
+                                _rect = result.get(i);
+                                if (_rect == null) {
+                                    detected = false;
+                                    tracker_init = false;
+                                    obj_result = null;
+                                    break;
+                                }
+                                _rect = mObjTracker.calibreRectAfterUpdate(_rect, rotate270, frontCamera);
+                                obj_result.get(i).update(_rect, PREVIEW_HEIGHT, PREVIEW_WIDTH);
+                            }
+                        }
+
+
+                        if (obj_result != null && obj_result.size() > 0 && particleAdapter != null) {
+                            TrackObject object = obj_result.get(0);
+                            float x = object.left;// + object.width * 0.5f ;
+                            float y = object.top;// + object.height * 0.5f ;
+                            System.out.println("position left top  " + obj_result.get(0).left + "   " + obj_result.get(0).top);
+                            System.out.println("position00  " + x + "   " + y);
+                            particleAdapter.setPosition(true, x, y);
+                        } else {
+                            System.out.println("position  false  ");
+                            particleAdapter.setPosition(false, 10, 10);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
 }

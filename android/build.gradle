@@ -1,6 +1,6 @@
 android {
-    buildToolsVersion "23.0.1"
-    compileSdkVersion 20
+    buildToolsVersion "26.0.1"
+    compileSdkVersion 26
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
@@ -19,8 +19,8 @@ android {
     }
     defaultConfig {
         applicationId "com.mygdx.game"
-        minSdkVersion 9
-        targetSdkVersion 23
+        minSdkVersion 21
+        targetSdkVersion 26
         versionCode 1
         versionName "1.0"
     }
@@ -132,4 +132,5 @@ idea {
 }
 dependencies {
     compile 'com.google.code.gson:gson:2.2.4'
+    compile project(path: ':dnncore')
 }

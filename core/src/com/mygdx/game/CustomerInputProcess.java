@@ -32,11 +32,13 @@ public class CustomerInputProcess implements InputProcessor {
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+        ParticleAdapter.isTouch = true;
         return false;
     }
 
     @Override
     public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+        ParticleAdapter.isTouch = false;
         return false;
     }
 

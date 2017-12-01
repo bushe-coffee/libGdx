@@ -1,0 +1,102 @@
+name: "DP-DET"
+
+input: "data"
+input_dim: 1
+input_dim: 128
+input_dim: 64
+input_dim: 64
+
+input: "rois"
+input_dim: 1 # to be changed on-the-fly to num ROIs
+input_dim: 5 # [batch ind, x1, y1, x2, y2] zero-based indexing
+input_dim: 1
+input_dim: 1
+
+layer {
+  name: "roi_pool_conv5"
+  type: "ROIPooling"
+  bottom: "data"
+  bottom: "rois"
+  top: "roi_pool_conv5"
+  roi_pooling_param {
+    pooled_w: 6
+    pooled_h: 6
+    spatial_scale: 0.0625 # 1/16
+  }
+}
+layer {
+  name: "fc6_reduce"
+  type: "InnerProduct"
+  bottom: "roi_pool_conv5"
+  top: "fc6_reduce"
+  param {
+    lr_mult: 1.0
+    decay_mult: 1.0
+  }
+  inner_product_param {
+    num_output: 256
+    weight_filler {
+      type: "xavier"
+    }
+  }
+}
+layer {
+  name: "fc6_reduce/relu"
+  type: "ReLU"
+  bottom: "fc6_reduce"
+  top: "fc6_reduce"
+}
+layer {
+  name: "fc7_reduce"
+  type: "InnerProduct"
+  bottom: "fc6_reduce"
+  top: "fc7_reduce"
+  param {
+    lr_mult: 1.0
+    decay_mult: 1.0
+  }
+  inner_product_param {
+    num_output: 256
+    weight_filler {
+      type: "xavier"
+    }
+  }
+}
+layer {
+  name: "fc7_reduce/relu"
+  type: "ReLU"
+  bottom: "fc7_reduce"
+  top: "fc7_reduce"
+}
+layer {
+  name: "cls_score"
+  type: "InnerProduct"
+  bottom: "fc7_reduce"
+  top: "cls_score"
+  param { lr_mult: 1.0 decay_mult: 1.0 }
+  param { lr_mult: 2.0 decay_mult: 0 }
+  inner_product_param {
+    num_output: 5
+    weight_filler { type: "gaussian" std: 0.01 }
+    bias_filler { type: "constant" value: 0 }
+  }
+}
+layer {
+  name: "bbox_pred"
+  type: "InnerProduct"
+  bottom: "fc7_reduce"
+  top: "bbox_pred"
+  param { lr_mult: 1.0 decay_mult: 1.0 }
+  param { lr_mult: 2.0 decay_mult: 0 }
+  inner_product_param {
+    num_output: 20
+    weight_filler { type: "gaussian" std: 0.001 }
+    bias_filler { type: "constant" value: 0 }
+  }
+}
+layer {
+  name: "cls_prob"
+  type: "Softmax"
+  bottom: "cls_score"
+  top: "cls_prob"
+}

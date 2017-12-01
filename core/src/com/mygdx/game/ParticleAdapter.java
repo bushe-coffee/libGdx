@@ -17,7 +17,10 @@ public class ParticleAdapter extends ApplicationAdapter {
     private ParticleEffect effect;
 
     private CustomerInputProcess inputProcessor;
-    private float position_X = 10, position_Y = 10;
+    private float position_X = 337.5f, position_Y = 1460.9249f;
+
+    private boolean isShow = false;
+    public static boolean isTouch = false;
 
     @Override
     public void create() {
@@ -40,25 +43,46 @@ public class ParticleAdapter extends ApplicationAdapter {
         Gdx.gl.glClearColor(0, 0, 0, 0.5f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
+        System.out.println("sunboyuan  " + isTouch + "   " + isShow);
+
         // 设置粒子的 绘制的 地方   是 手指 拖拽的 坐标
-        effect.setPosition(inputProcessor.x, inputProcessor.y);
-        drawContent.begin();
+        synchronized (effect) {
+            if (isTouch) {
+                effect.setPosition(inputProcessor.x, inputProcessor.y);
+            } else {
+                effect.setPosition(position_X, position_Y);
+            }
 
-        float delta = Gdx.graphics.getDeltaTime();
-        effect.draw(drawContent, delta);
+            drawContent.begin();
+            float delta = Gdx.graphics.getDeltaTime();
+            if (isShow) {
+                effect.draw(drawContent, delta);
+            } else {
 
-        drawContent.end();
+            }
+
+            drawContent.end();
+        }
     }
 
     @Override
     public void dispose() {
         super.dispose();
         drawContent.dispose();
-//        bf.dispose();
         //千万别忘了释放内存
         effect.dispose();
-//        if(tem!=null)
-//            tem.dispose();
-//        particlepool.clear();
+    }
+
+    public void setPosition(boolean b, float x, float y) {
+        synchronized (effect) {
+            isShow = b;
+            if (isShow) {
+                position_X = x * Gdx.graphics.getWidth() + 10.0f;
+                position_Y = (1.0f - y) * Gdx.graphics.getHeight() - 10.0f;
+            }
+        }
+
+        System.out.println("position  " + position_X + "   " + position_Y);
+
     }
 }
