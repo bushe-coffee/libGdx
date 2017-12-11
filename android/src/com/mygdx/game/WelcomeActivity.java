@@ -35,7 +35,7 @@ public class WelcomeActivity extends Activity {
             @Override
             public void onClick(View v) {
                 if (prepare > 0) {
-                    startActivity(new Intent(WelcomeActivity.this, AndroidLauncher.class));
+                    startActivity(new Intent(WelcomeActivity.this, AndroidLauncher2.class));
                     WelcomeActivity.this.finish();
                 }
             }
